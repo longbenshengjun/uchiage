@@ -200,6 +200,11 @@ function go(i){
 }
 
 document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => openQuiz(b.dataset.go));
+$("toHome").onclick = () => { stopAudio(); show("home"); };
+$("prev").onclick = () => go(cur - 1);
+$("next").onclick = () => go(cur + 1);
+$("zoomX").onclick = () => $("zoom").classList.remove("on");
+$("zoom").onclick = e => { if(e.target.id === "zoom") $("zoom").classList.remove("on"); };
 
 /* QRコードから開いたとき（?s=nazo など）：そのコーナーを直接ひらく */
 (function(){
