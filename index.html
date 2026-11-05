@@ -121,7 +121,7 @@ body.single .bar h2{text-align:left}
 
 <script>
 "use strict";
-const QUIZ = {"photo": [{"q": "この写真は　何年生の　クラス？", "imgs": ["p1.jpg", "p2.jpg"]}, {"q": "この写真は　何年生の　クラス？", "imgs": ["p7.jpg", "p8.jpg"]}, {"q": "この写真は　何年生の　クラス？", "imgs": ["p5.jpg", "p6.jpg"]}, {"q": "この写真は　何年生の　クラス？", "imgs": ["p3.jpg", "p4.jpg"]}], "nazo": [{"q": "まわりから「しっぽを借りた方がいい」と言われる楽器は？"}, {"q": "<span style=\"display:block;font-size:30px;line-height:1.4;color:#27316b;font-family:Georgia,serif;margin:6px 0 12px\">“Carried on the Words<br>of Thank You”</span>この英語にしてある歌は<br>何年生の歌でしょう？"}, {"q": "１週間の中で聴ける、美しい音色の楽器は何？"}, {"q": "音が４回鳴ったら　寄ってくる人はだれ？"}, {"q": "音楽会のスローガンは何でしょう？"}], "intro": [{"era": "1980年代", "file": "intro_1980.mp3"}, {"era": "1990年代", "file": "intro_1990.mp3"}, {"era": "2000年代", "file": "intro_2000.mp3"}, {"era": "2010年代", "file": "intro_2010.mp3"}, {"era": "2020年代", "file": "intro_2020.mp3"}]};
+const QUIZ = {"photo": [{"q": "この写真は　何年生の　クラス？", "imgs": ["p1.jpg", "p2.jpg"]}, {"q": "この写真は　何年生の　クラス？", "imgs": ["p7.jpg", "p8.jpg"]}, {"q": "この写真は　何年生の　クラス？", "imgs": ["p5.jpg", "p6.jpg"]}, {"q": "この写真は　何年生の　クラス？", "imgs": ["p3.jpg", "p4.jpg"]}], "nazo": [{"q": "まわりから「しっぽを借りた方がいい」と言われる楽器は？"}, {"q": "この楽譜は　何年生の　曲でしょう？", "img": "score2.jpg"}, {"q": "１週間の中で聴ける、美しい音色の楽器は何？"}, {"q": "音が４回鳴ったら　寄ってくる人はだれ？"}, {"q": "音楽会のスローガンは何でしょう？"}], "intro": [{"era": "1980年代", "file": "intro_1980.mp3"}, {"era": "1990年代", "file": "intro_1990.mp3"}, {"era": "2000年代", "file": "intro_2000.mp3"}, {"era": "2010年代", "file": "intro_2010.mp3"}, {"era": "2020年代", "file": "intro_2020.mp3"}]};
 const $ = id => document.getElementById(id);
 const TITLES = {photo:"① 写真クイズ", nazo:"② 音楽なぞなぞ", intro:"③ イントロドン"};
 let kind = null, cur = 0;
@@ -168,7 +168,12 @@ function go(i){
     });
   }else if(kind === "nazo"){
     box.innerHTML = no + '<div class="qtext">' + q.q + '</div>'
+      + (q.img ? '<div class="photo" data-im="' + q.img + '"><img src="' + q.img + '" alt=""></div>'
+               + '<div class="flip">楽譜をタップすると大きく見られます</div>' : '')
       + '<div class="flip">✏️ 答えはフリップへ</div>';
+    box.querySelectorAll("[data-im]").forEach(el => el.onclick = () => {
+      $("zoomImg").src = el.dataset.im; $("zoom").classList.add("on");
+    });
   }else{
     box.innerHTML = no + '<div class="era">' + q.era + '</div>'
       + '<div class="playwrap"><button class="pbtn" id="pb">'
