@@ -73,7 +73,14 @@ h1 .sub{font-size:13px;color:var(--acc);letter-spacing:.14em;display:block;margi
 .rankrow .ac{width:66px;text-align:right;color:var(--sub);font-size:12px;font-variant-numeric:tabular-nums}
 .rankrow.me{background:rgba(200,160,255,.10);border-radius:8px}
 .rankempty{color:var(--sub);font-size:13px;padding:10px 2px}
-#nameBox{display:flex;gap:8px;margin-top:12px}
+#nameBox{margin-top:12px}
+#teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:8px 0 10px}
+#nameBox #teams button{padding:12px 6px;border-radius:10px;border:2px solid var(--line);background:#120f1e;color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+#nameBox #teams button.on{background:var(--acc);border-color:var(--acc);color:#1a1228}
+#nameBox #saveName{width:100%;padding:13px;border:0;border-radius:10px;background:var(--acc);color:#1a1228;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer}
+#nameBox #saveName:disabled{opacity:.45}
+.teamhint{font-size:13px;color:var(--sub)}
+.rankrow .cnt{width:52px;text-align:right;color:var(--sub);font-size:12px}
 #nameBox input{flex:1;background:#120f1e;border:1px solid var(--line);border-radius:10px;
   color:var(--tx);padding:11px 12px;font-size:15px}
 #nameBox button{background:var(--acc);border:0;border-radius:10px;color:#1a1228;
@@ -157,7 +164,7 @@ h1 .sub{font-size:13px;color:var(--acc);letter-spacing:.14em;display:block;margi
   </div>
 
   <button id="start" class="play">スタート</button>
-  <button id="todayBtn" class="ghost">今日の結果を見る</button>
+  <button id="todayBtn" class="ghost">チーム集計を見る</button>
   <button id="tocalib" class="ghost">タイミングを合わせる</button>
   <div id="loadmsg" style="text-align:center;font-size:12.5px;color:var(--sub);min-height:18px"></div>
   <div id="rotHint" style="text-align:center;font-size:12px;color:var(--sub);margin-top:6px"></div>
@@ -165,9 +172,8 @@ h1 .sub{font-size:13px;color:var(--acc);letter-spacing:.14em;display:block;margi
 
 <!-- ================= 今日の結果 ================= -->
 <div id="today" class="screen"><div class="wrap">
-  <h1><span class="sub" id="todayDate">きょう</span>今日の結果</h1>
-  <p class="lead">曲ごとの、その日のいちばん高い点と、出した人の名前です。
-    日付がかわると自動でリセットされます。</p>
+  <h1><span class="sub" id="todayDate">きょう</span>チーム集計</h1>
+  <p class="lead">各チームの最高得点です。同じチームで何回登録しても、いちばん高い点だけが使われます。</p>
   <div class="card"><div id="todayList"></div></div>
   <button id="todayReload" class="ghost">読みこみ直す</button>
   <button id="todayBack" class="ghost">もどる</button>
@@ -227,11 +233,12 @@ h1 .sub{font-size:13px;color:var(--acc);letter-spacing:.14em;display:block;margi
     <h2 id="rankTitle">テーブル対抗ランキング</h2>
     <div id="rankList"></div>
     <div id="nameBox" class="hidden">
-      <input id="pname" maxlength="8" placeholder="テーブル名（例：3ばん）">
-      <button id="saveName">この名前で登録</button>
+      <div class="teamhint">チームをえらんで「登録」を押してください（同じチームのだれが登録してもOK）</div>
+      <div id="teams"></div>
+      <button id="saveName" disabled>チームをえらんでください</button>
     </div>
   </div>
-  <button id="todayBtn2" class="ghost">今日の結果を見る</button>
+  <button id="todayBtn2" class="ghost">チーム集計を見る</button>
   <button id="again" class="ghost">もう一度あそぶ</button>
   <button id="back" class="ghost">曲をえらびなおす</button>
 </div></div>
@@ -995,59 +1002,15 @@ function resultFireworks(){
    そのときは「ランキング用スクリプトの更新が必要」と出す。
    ========================================================================== */
 async function showToday(){
+  if(!SONG) SONG = SONGS[0];
   show("today");
   const d = new Date();
   $("todayDate").textContent = (d.getMonth()+1) + "月" + d.getDate() + "日";
   $("todayList").innerHTML = '<div class="rankempty">読み込んでいます…</div>';
-  let rows = null, bad = false;
-  try{
-    const r = await fetch(RANK_API + "?mode=today&cb=" + Date.now(), {cache:"no-store"});
-    if(r.ok){
-      const j = await r.json();
-      if(Array.isArray(j)){
-        if(j.length && j[0].song === undefined) bad = true; else rows = j;
-      }
-    }
-  }catch(e){}
-  if(bad){
-    $("todayList").innerHTML = '<div class="rankempty">'
-      + 'この機能を使うには、ランキング用スクリプトの更新（と再デプロイ）が必要です。<br>'
-      + '<span style="font-size:12px">開発ファイルの「ランキング用スクリプト.txt」の中身に差し替えてください。</span></div>';
-    return;
-  }
-  if(!rows){
-    $("todayList").innerHTML = '<div class="rankempty">読み込めませんでした。'
-      + '通信を確かめて「読みこみ直す」を押してください。</div>';
-    return;
-  }
-  const box = $("todayList");
-  box.innerHTML = "";
-  let any = false;
-  SONGS.forEach(s => {
-    const mine = rows.filter(r => r.song === s.id);
-    const h = document.createElement("div");
-    h.className = "todaysong"; h.textContent = s.title;
-    box.appendChild(h);
-    if(!mine.length){
-      const e = document.createElement("div");
-      e.className = "rankempty"; e.style.padding = "4px 2px";
-      e.textContent = "まだ記録がありません";
-      box.appendChild(e); return;
-    }
-    any = true;
-    s.diffs.forEach(([dk, dl]) => {
-      const rec = mine.find(r => r.diff === dk);
-      if(!rec) return;
-      const row = document.createElement("div");
-      row.className = "todayrow";
-      row.innerHTML = '<span class="d">' + dl + '</span>'
-        + '<span class="nm">' + String(rec.name||"").replace(/[<>&]/g,"") + '</span>'
-        + '<span class="sc">' + Number(rec.score).toLocaleString() + '</span>';
-      box.appendChild(row);
-    });
-  });
-  if(!any) box.insertAdjacentHTML("afterbegin",
-    '<div class="rankempty">今日はまだ誰も遊んでいません。</div>');
+  const online = await apiTop();
+  drawTeams($("todayList"), online || localTop(rankKey()));
+  if(!online) $("todayList").insertAdjacentHTML("beforeend",
+    '<div class="rankempty">※ 通信できなかったので、このスマホの記録だけを表示しています。</div>');
 }
 
 /* ==========================================================================
@@ -1129,7 +1092,12 @@ function calibLoop(){
    ========================================================================== */
 const RANK_API = "https://script.google.com/macros/s/AKfycbyZqyoFKgC7c8603NDxDbMbJfdJK5WOFt5NnhFtA9juLM33K-yt2sfjUJC8zs6pOOCT/exec";
 const RKEY = "uchiage.kouka.rank.v1";
-const TOPN = 8;
+const TOPN = 200;   /* 全記録を取ってきて、チームごとの最高点にまとめる */
+const TEAMS = ["hontoにスター", "トトロ", "９９９", "豊臣", "ライオン"];
+const TKEY = "uchiage.kouka.team";
+let pickTeam = null;
+try{ pickTeam = localStorage.getItem(TKEY); }catch(e){}
+if(TEAMS.indexOf(pickTeam) < 0) pickTeam = null;
 let lastRec = null, rankBusy = false;
 
 function rankKey(){ return SONG.id + "/" + DIFF; }   /* 曲×むずかしさ ごとに集計 */
@@ -1141,7 +1109,7 @@ function localTop(key){
 function localAdd(key, rec){
   const all = loadLocal(); const l = all[key] || [];
   l.push(rec); l.sort((a,b)=>b.score-a.score);
-  all[key] = l.slice(0,20); saveLocal(all);
+  all[key] = l.slice(0,TOPN); saveLocal(all);
   return all[key].slice(0,TOPN);
 }
 async function apiTop(){
@@ -1166,52 +1134,66 @@ async function apiPost(rec){
     return Array.isArray(j) ? j : null;
   }catch(e){ return null; }
 }
-function drawRank(list, hi){
-  const box = $("rankList");
+function esc(s){ return String(s||"").replace(/[<>&]/g,""); }
+/* 記録の一覧 → チームごとの最高点（5チーム全部。記録なしは「－」） */
+function teamBest(list){
+  const best = {};
+  TEAMS.forEach(n => best[n] = {name:n, score:null, n:0});
+  (list||[]).forEach(e => {
+    const b = best[e.name]; if(!b) return;
+    b.n++;
+    if(b.score === null || Number(e.score) > b.score) b.score = Number(e.score);
+  });
+  return TEAMS.map(n => best[n]).sort((a,b) => (b.score ?? -1) - (a.score ?? -1));
+}
+function drawTeams(box, list, hiTeam){
   box.innerHTML = "";
-  if(!list || !list.length){
-    box.innerHTML = '<div class="rankempty">まだ記録がありません。最初の1位になりましょう。</div>';
-    return;
-  }
-  list.slice(0,TOPN).forEach((e,i) => {
+  let pos = 0, prev = null;
+  teamBest(list).forEach((e,i) => {
+    if(e.score !== prev) pos = i + 1; prev = e.score;
     const d = document.createElement("div");
-    d.className = "rankrow" + (hi && e.name===hi.name && e.score===hi.score ? " me" : "");
-    const col = ["#ffd93d","#dfe6f0","#e0a06a"][i] || "#fff";
-    d.innerHTML = '<span class="pos" style="color:'+col+'">'+(i+1)+'</span>'
-      + '<span class="nm">' + String(e.name||"").replace(/[<>&]/g,"") + '</span>'
-      + '<span class="sc">' + Number(e.score).toLocaleString() + '</span>'
-      + '<span class="ac">' + (Number(e.acc)*100).toFixed(1) + '%</span>';
+    d.className = "rankrow" + (hiTeam && e.name === hiTeam ? " me" : "");
+    const col = e.score === null ? "var(--sub)" : (["#ffd93d","#dfe6f0","#e0a06a"][pos-1] || "#fff");
+    d.innerHTML = '<span class="pos" style="color:'+col+'">' + (e.score === null ? "－" : pos) + '</span>'
+      + '<span class="nm">' + esc(e.name) + '</span>'
+      + '<span class="sc">' + (e.score === null ? "－" : e.score.toLocaleString()) + '</span>'
+      + '<span class="cnt">' + (e.n ? e.n + "回" : "") + '</span>';
     box.appendChild(d);
   });
 }
+function drawRank(list, hi){ drawTeams($("rankList"), list, hi && hi.name); }
+function drawTeamTabs(){
+  const box = $("teams"); box.innerHTML = "";
+  TEAMS.forEach(n => {
+    const b = document.createElement("button");
+    b.textContent = n;
+    if(n === pickTeam) b.className = "on";
+    b.onclick = () => { pickTeam = n; try{ localStorage.setItem(TKEY, n); }catch(e){} drawTeamTabs(); };
+    box.appendChild(b);
+  });
+  const s = $("saveName");
+  s.disabled = !pickTeam || !lastRec;
+  s.textContent = pickTeam ? "「" + pickTeam + "」で登録" : "チームをえらんでください";
+}
 async function showRanking(sc, acc){
-  $("rankTitle").textContent = "テーブル対抗ランキング（" + diffLabel(DIFF) + "）";
-  $("nameBox").classList.add("hidden");
-  $("saveName").disabled = false;
+  $("rankTitle").textContent = "チーム対抗（各チームの最高点）";
+  lastRec = {song:SONG.id, diff:DIFF, score:sc, acc:acc};
+  $("nameBox").classList.remove("hidden");
+  drawTeamTabs();
+  $("rankList").innerHTML = '<div class="rankempty">読み込んでいます…</div>';
   const online = await apiTop();
-  const list = online || localTop(rankKey());
-  drawRank(list);
-  const worst = list.length >= TOPN ? Number(list[TOPN-1].score) : -1;
-  if(sc > worst){
-    lastRec = {song:SONG.id, diff:DIFF, score:sc, acc:acc};
-    $("nameBox").classList.remove("hidden");
-    try{ $("pname").value = localStorage.getItem("poprhythm.name") || ""; }catch(e){}
-  }else lastRec = null;
+  drawRank(online || localTop(rankKey()));
 }
 async function saveRank(){
-  if(!lastRec || rankBusy) return;
+  if(!lastRec || rankBusy || !pickTeam) return;
   rankBusy = true;
   $("saveName").disabled = true;
   $("saveName").textContent = "登録中…";
-  const nm = ($("pname").value || "ゲスト").trim().slice(0,8) || "ゲスト";
-  try{ localStorage.setItem("poprhythm.name", nm); }catch(e){}
-  const rec = Object.assign({name:nm}, lastRec);
+  const rec = Object.assign({name:pickTeam}, lastRec);
   const online = await apiPost(rec);
-  const list = online || localAdd(rankKey(), rec);
-  if(online) localAdd(rankKey(), rec);
-  drawRank(list, rec);
+  localAdd(rankKey(), rec);
+  drawRank(online || localTop(rankKey()), rec);
   $("nameBox").classList.add("hidden");
-  $("saveName").textContent = "この名前で登録";
   lastRec = null; rankBusy = false;
 }
 
