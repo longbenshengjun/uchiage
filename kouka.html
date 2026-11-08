@@ -1156,8 +1156,7 @@ function drawTeams(box, list, hiTeam){
     const col = e.score === null ? "var(--sub)" : (["#ffd93d","#dfe6f0","#e0a06a"][pos-1] || "#fff");
     d.innerHTML = '<span class="pos" style="color:'+col+'">' + (e.score === null ? "－" : pos) + '</span>'
       + '<span class="nm">' + esc(e.name) + '</span>'
-      + '<span class="sc">' + (e.score === null ? "－" : e.score.toLocaleString()) + '</span>'
-      + '<span class="cnt">' + (e.n ? e.n + "回" : "") + '</span>';
+      + '<span class="sc">' + (e.score === null ? "－" : e.score.toLocaleString()) + '</span>';
     box.appendChild(d);
   });
 }
