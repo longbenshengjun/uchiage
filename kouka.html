@@ -176,6 +176,15 @@ h1 .sub{font-size:13px;color:var(--acc);letter-spacing:.14em;display:block;margi
   <p class="lead">各チームの最高得点です。同じチームで何回登録しても、いちばん高い点だけが使われます。</p>
   <div class="card"><div id="todayList"></div></div>
   <button id="todayReload" class="ghost">読みこみ直す</button>
+  <div id="resetBox" style="margin-top:22px;text-align:center">
+    <button id="resetAsk" class="ghost" style="font-size:13px;opacity:.75">得点をリセット（司会用）</button>
+    <div id="resetConfirm" class="hidden" style="margin-top:8px">
+      <div style="font-size:14px;margin-bottom:8px;color:#ff8a8a">全チームの得点を0にもどします。よろしいですか？</div>
+      <button id="resetDo" style="background:#e8443c;color:#fff;border:0;border-radius:10px;padding:11px 18px;font-weight:800;font-family:inherit">リセットする</button>
+      <button id="resetCancel" class="ghost">やめる</button>
+    </div>
+    <div id="resetMsg" style="font-size:13px;margin-top:8px;color:var(--sub)"></div>
+  </div>
   <button id="todayBack" class="ghost">もどる</button>
 </div></div>
 
@@ -1001,7 +1010,26 @@ function resultFireworks(){
    RANK_API に mode=today を足してある。スクリプトが古いと song が入っていないので、
    そのときは「ランキング用スクリプトの更新が必要」と出す。
    ========================================================================== */
+function wireReset(){
+  if(wireReset.done) return; wireReset.done = true;
+  const box = $("resetConfirm"), msg = $("resetMsg");
+  $("resetAsk").onclick = () => { box.classList.remove("hidden"); msg.textContent = ""; };
+  $("resetCancel").onclick = () => box.classList.add("hidden");
+  $("resetDo").onclick = async () => {
+    $("resetDo").disabled = true; msg.textContent = "リセット中…";
+    const now = Date.now();
+    const res = await apiPost({name:"reset", song:SONG.id, diff:DIFF, score:999999999, acc:now});
+    $("resetDo").disabled = false;
+    if(!res){ msg.style.color = "#ff8a8a"; msg.textContent = "リセットできませんでした。電波のよい所でもう一度押してください。"; return; }
+    localAdd(rankKey(), {name:"reset", score:999999999, acc:now});
+    box.classList.add("hidden");
+    msg.style.color = "var(--sub)"; msg.textContent = "リセットしました。";
+    drawTeams($("todayList"), merged(res));
+  };
+}
 async function showToday(){
+  wireReset();
+  $("resetConfirm").classList.add("hidden"); $("resetMsg").textContent = "";
   if(!SONG) SONG = SONGS[0];
   show("today");
   const d = new Date();
@@ -1151,11 +1179,17 @@ function teamOf(name){
   return null;
 }
 /* 記録の一覧 → チームごとの最高点（5チーム全部。記録なしは「－」） */
+function resetTime(list){
+  let at = 0;
+  (list||[]).forEach(e => { if(norm(e.name) === "reset") at = Math.max(at, Number(e.acc) || 0); });
+  return at;
+}
 function teamBest(list){
-  const best = {};
+  const best = {}, since = resetTime(list);
   TEAMS.forEach(n => best[n] = {name:n, score:null, n:0});
   (list||[]).forEach(e => {
     const tm = teamOf(e.name); if(!tm) return;
+    if(since && !(Number(e.acc) > since)) return;   /* リセットより前の記録は数えない */
     const b = best[tm], sc = Number(e.score);
     if(!isFinite(sc)) return;
     b.n++;
@@ -1215,7 +1249,7 @@ async function saveRank(){
   $("saveName").textContent = "登録中…";
   setMsg("");
   const code = TCODE[TEAMS.indexOf(pickTeam)];
-  const rec = Object.assign({name:code}, lastRec);
+  const rec = Object.assign({name:code}, lastRec, {acc: Date.now()});
   const online = await apiPost(rec);
   rankBusy = false;
   if(!online){
