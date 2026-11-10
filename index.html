@@ -213,7 +213,11 @@ $("zoom").onclick = e => { if(e.target.id === "zoom") $("zoom").classList.remove
 
 /* QRコードから開いたとき（?s=nazo など）：そのコーナーを直接ひらく */
 (function(){
-  const k = new URLSearchParams(location.search).get("s");
+  const qs = new URLSearchParams(location.search);
+  /* ポスターのQRは ?g=1〜4（中身が分からない番号）。?s=photo などの古いリンクもそのまま使える */
+  const G = {"1":"photo", "2":"nazo", "3":"intro", "4":"kouka"};
+  const k = G[qs.get("g")] || qs.get("s");
+  if(k === "kouka"){ location.replace("kouka.html"); return; }
   if(!QUIZ[k]) return;
   document.body.classList.add("single");
   openQuiz(k);

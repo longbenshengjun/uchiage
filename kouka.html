@@ -932,7 +932,7 @@ function finish(){
   stopSong();
   const total = cnt[0] + cnt[1] + cnt[2];
   const acc = accMax ? accSum/accMax : 0;
-  const cleared = gauge >= CLEAR;
+  const cleared = true;   /* 打ち上げ版：何点でもクリア */
   $("verdict").textContent = cleared ? "クリア！" : "ざんねん…もう一息";
   $("verdict").className = "verdict " + (cleared ? "clear" : "fail");
   $("clearArt").classList.toggle("hidden", !cleared);
@@ -1008,9 +1008,9 @@ async function showToday(){
   $("todayDate").textContent = (d.getMonth()+1) + "月" + d.getDate() + "日";
   $("todayList").innerHTML = '<div class="rankempty">読み込んでいます…</div>';
   const online = await apiTop();
-  drawTeams($("todayList"), online || localTop(rankKey()));
+  drawTeams($("todayList"), merged(online));
   if(!online) $("todayList").insertAdjacentHTML("beforeend",
-    '<div class="rankempty">※ 通信できなかったので、このスマホの記録だけを表示しています。</div>');
+    '<div class="rankempty" style="color:#ff8a8a">※ 通信できなかったので、このスマホの記録だけを表示しています。「読みこみ直す」を押してください。</div>');
 }
 
 /* ==========================================================================
@@ -1094,6 +1094,8 @@ const RANK_API = "https://script.google.com/macros/s/AKfycbyZqyoFKgC7c8603NDxDbM
 const RKEY = "uchiage.kouka.rank.v1";
 const TOPN = 200;   /* 全記録を取ってきて、チームごとの最高点にまとめる */
 const TEAMS = ["hontoにスター", "トトロ", "９９９", "豊臣", "ライオン"];
+/* シートに送る名前。「９９９」が数字の999に変わる・8文字で切られる、を防ぐため短い英字コードにする */
+const TCODE = ["team1", "team2", "team3", "team4", "team5"];
 const TKEY = "uchiage.kouka.team";
 let pickTeam = null;
 try{ pickTeam = localStorage.getItem(TKEY); }catch(e){}
@@ -1117,7 +1119,7 @@ async function apiTop(){
   try{
     const u = RANK_API + "?song=" + encodeURIComponent(SONG.id)
             + "&diff=" + encodeURIComponent(DIFF) + "&n=" + TOPN + "&cb=" + Date.now();
-    const r = await fetch(u, {cache:"no-store"});
+    const r = await fetch(u, {cache:"no-store", signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined});
     if(!r.ok) return null;
     const j = await r.json();
     return Array.isArray(j) ? j : null;
@@ -1126,7 +1128,7 @@ async function apiTop(){
 async function apiPost(rec){
   if(!RANK_API) return null;
   try{
-    const r = await fetch(RANK_API, {method:"POST",
+    const r = await fetch(RANK_API, {method:"POST", signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined,
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify(Object.assign({n:TOPN}, rec))});
     if(!r.ok) return null;
@@ -1135,17 +1137,34 @@ async function apiPost(rec){
   }catch(e){ return null; }
 }
 function esc(s){ return String(s||"").replace(/[<>&]/g,""); }
+function norm(s){ return String(s == null ? "" : s).normalize("NFKC").replace(/\s+/g,"").toLowerCase(); }
+/* 記録の名前 → チーム名。コード（team1…）でも、前の版で送った名前
+   （数字に変わった 999、8文字で切れた「hontoにスタ」など）でも当てる */
+function teamOf(name){
+  const n = norm(name);
+  if(!n) return null;
+  for(let i = 0; i < TEAMS.length; i++){
+    const t = norm(TEAMS[i]);
+    if(n === TCODE[i] || n === t) return TEAMS[i];
+    if(n.length >= 3 && t.startsWith(n)) return TEAMS[i];
+  }
+  return null;
+}
 /* 記録の一覧 → チームごとの最高点（5チーム全部。記録なしは「－」） */
 function teamBest(list){
   const best = {};
   TEAMS.forEach(n => best[n] = {name:n, score:null, n:0});
   (list||[]).forEach(e => {
-    const b = best[e.name]; if(!b) return;
+    const tm = teamOf(e.name); if(!tm) return;
+    const b = best[tm], sc = Number(e.score);
+    if(!isFinite(sc)) return;
     b.n++;
-    if(b.score === null || Number(e.score) > b.score) b.score = Number(e.score);
+    if(b.score === null || sc > b.score) b.score = sc;
   });
   return TEAMS.map(n => best[n]).sort((a,b) => (b.score ?? -1) - (a.score ?? -1));
 }
+/* シートの記録と、このスマホで登録した記録を合わせる（通信に失敗しても自分の登録は消えない） */
+function merged(online){ return (online || []).concat(localTop(rankKey())); }
 function drawTeams(box, list, hiTeam){
   box.innerHTML = "";
   let pos = 0, prev = null;
@@ -1178,22 +1197,38 @@ async function showRanking(sc, acc){
   $("rankTitle").textContent = "チーム対抗（各チームの最高点）";
   lastRec = {song:SONG.id, diff:DIFF, score:sc, acc:acc};
   $("nameBox").classList.remove("hidden");
+  setMsg("");
   drawTeamTabs();
   $("rankList").innerHTML = '<div class="rankempty">読み込んでいます…</div>';
-  const online = await apiTop();
-  drawRank(online || localTop(rankKey()));
+  drawRank(merged(await apiTop()));
+}
+function setMsg(m, bad){
+  let el = $("saveMsg");
+  if(!el){ el = document.createElement("div"); el.id = "saveMsg"; $("saveName").after(el); }
+  el.style.cssText = "font-size:13px;margin-top:8px;color:" + (bad ? "#ff8a8a" : "var(--sub)");
+  el.textContent = m;
 }
 async function saveRank(){
   if(!lastRec || rankBusy || !pickTeam) return;
   rankBusy = true;
   $("saveName").disabled = true;
   $("saveName").textContent = "登録中…";
-  const rec = Object.assign({name:pickTeam}, lastRec);
+  setMsg("");
+  const code = TCODE[TEAMS.indexOf(pickTeam)];
+  const rec = Object.assign({name:code}, lastRec);
   const online = await apiPost(rec);
+  rankBusy = false;
+  if(!online){
+    /* 送れなかった：自分のスマホには残さず、もう一度押せるようにする */
+    drawTeamTabs();
+    setMsg("登録できませんでした。電波のよい所で、もう一度「登録」を押してください。", true);
+    return;
+  }
   localAdd(rankKey(), rec);
-  drawRank(online || localTop(rankKey()), rec);
+  drawRank(merged(online), {name:pickTeam});
   $("nameBox").classList.add("hidden");
-  lastRec = null; rankBusy = false;
+  setMsg("");
+  lastRec = null;
 }
 
 /* ==========================================================================
